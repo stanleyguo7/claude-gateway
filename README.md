@@ -15,7 +15,7 @@ claude-gateway/
 ├── client/          # Frontend web interface
 │   ├── src/
 │   │   ├── components/
-│   │   ├── pages/
+│   │   ├── services/
 │   │   └── App.jsx
 │   └── package.json
 └── README.md

@@ -1,9 +1,12 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const api = axios.create({
+  baseURL: '/api',
+  timeout: 30000
+});
 
 export async function sendMessage(message, sessionId = null) {
-  const response = await axios.post(`${API_BASE_URL}/chat/message`, {
+  const response = await api.post('/chat/message', {
     message,
     sessionId
   });
@@ -11,6 +14,6 @@ export async function sendMessage(message, sessionId = null) {
 }
 
 export async function getHistory(sessionId) {
-  const response = await axios.get(`${API_BASE_URL}/chat/history/${sessionId}`);
+  const response = await api.get(`/chat/history/${sessionId}`);
   return response.data;
 }
