@@ -245,3 +245,66 @@
   border-radius: 8px;
   margin: 0.5em 0;
 }
+
+/* Light theme */
+[data-theme="light"] .message.assistant .message-content {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .inline-code {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #d63384;
+}
+
+[data-theme="light"] .code-block-wrapper {
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .code-block-header {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .code-language {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="light"] .copy-button {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #666;
+}
+
+[data-theme="light"] .message.assistant .message-text strong {
+  color: #333;
+}
+
+[data-theme="light"] .message.assistant .message-text em {
+  color: #555;
+}
+
+[data-theme="light"] .message.assistant .message-text a {
+  color: #d63384;
+}
+
+[data-theme="light"] .message.assistant .message-text blockquote {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="light"] .message.assistant .message-text th {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .message.assistant .message-text th,
+[data-theme="light"] .message.assistant .message-text td {
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .message-timestamp {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"] .message.user .message-timestamp {
+  color: rgba(255, 255, 255, 0.8);
+}

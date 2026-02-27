@@ -1,0 +1,177 @@
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.settings-panel {
+  background: #1e1e1e;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 480px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.settings-header h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #ddd;
+  margin: 0;
+}
+
+.settings-close {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.settings-close:hover {
+  color: #fff;
+}
+
+.settings-body {
+  padding: 1.25rem;
+}
+
+.settings-section {
+  margin-bottom: 1.25rem;
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.settings-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #bbb;
+  margin-bottom: 0.5rem;
+}
+
+.settings-select {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #ddd;
+  font-size: 0.9rem;
+  cursor: pointer;
+  appearance: auto;
+}
+
+.settings-select:focus {
+  outline: none;
+  border-color: rgba(255, 107, 107, 0.5);
+}
+
+.settings-textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #ddd;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.settings-textarea:focus {
+  outline: none;
+  border-color: rgba(255, 107, 107, 0.5);
+}
+
+.settings-textarea::placeholder {
+  color: #666;
+}
+
+.theme-options {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.theme-btn {
+  flex: 1;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #aaa;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.theme-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.theme-btn.active {
+  background: rgba(255, 107, 107, 0.15);
+  border-color: rgba(255, 107, 107, 0.4);
+  color: #ff8a8a;
+}
+
+/* Light theme overrides */
+[data-theme="light"] .settings-panel {
+  background: #f5f5f5;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .settings-header {
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .settings-header h2 {
+  color: #333;
+}
+
+[data-theme="light"] .settings-close {
+  color: #666;
+}
+
+[data-theme="light"] .settings-label {
+  color: #555;
+}
+
+[data-theme="light"] .settings-select,
+[data-theme="light"] .settings-textarea {
+  background: white;
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #333;
+}
+
+[data-theme="light"] .theme-btn {
+  background: white;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #555;
+}

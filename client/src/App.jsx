@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import ChatMessage from './components/ChatMessage';
 import MessageInput from './components/MessageInput';
 import SessionSidebar from './components/SessionSidebar';
+import SettingsPanel, { getStoredSettings } from './components/SettingsPanel';
 import { sendMessage, getSessions, createSession, deleteSessionApi, renameSession, getHistory } from './services/api';
 import wsService from './services/websocket';
 import './App.css';
@@ -19,6 +20,8 @@ function App() {
   const [useStreaming, setUseStreaming] = useState(true);
   const [wsConnected, setWsConnected] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [appSettings, setAppSettings] = useState(getStoredSettings);
   const messagesEndRef = useRef(null);
   const streamingMsgId = useRef(null);
 
@@ -237,7 +240,9 @@ function App() {
       type: 'chat',
       message: messageText,
       sessionId,
-      files: fileNames
+      files: fileNames,
+      model: appSettings.model || undefined,
+      systemPrompt: appSettings.systemPrompt || undefined
     });
     if (!sent) {
       setMessages(prev => [...prev, {
@@ -345,8 +350,17 @@ function App() {
             />
             Streaming
           </label>
+          <button className="settings-btn" onClick={() => setSettingsOpen(true)} title="Settings">
+            &#9881;
+          </button>
         </div>
       </header>
+
+      <SettingsPanel
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSettingsChange={setAppSettings}
+      />
 
       <main className="chat-container">
         <div className="messages">
