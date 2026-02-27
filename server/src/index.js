@@ -5,9 +5,12 @@ import { WebSocketServer } from 'ws';
 import http from 'http';
 import chatRouter from './api/chat.js';
 import { setupWebSocket } from './services/websocket.js';
-import { cleanupSessions } from './services/claude.js';
+import { initDatabase, closeDatabase } from './services/database.js';
 
 dotenv.config();
+
+// Initialize database
+initDatabase();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -94,11 +97,6 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 setupWebSocket(wss);
 
-// Session cleanup interval (every 10 minutes)
-const sessionCleanupInterval = setInterval(() => {
-  cleanupSessions();
-}, 10 * 60 * 1000);
-
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`WebSocket server running on ws://localhost:${PORT}`);
@@ -108,7 +106,8 @@ server.listen(PORT, () => {
 function shutdown(signal) {
   console.log(`\n${signal} received. Shutting down gracefully...`);
 
-  clearInterval(sessionCleanupInterval);
+  // Close database
+  closeDatabase();
 
   // Close WebSocket connections
   wss.clients.forEach((client) => {

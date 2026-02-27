@@ -1,71 +1,51 @@
 import { spawn } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  createSession,
+  getSessionById,
+  updateSessionActivity,
+  addMessage,
+  getMessagesBySession
+} from './database.js';
 
-const sessions = new Map();
-const SESSION_TTL = 30 * 60 * 1000; // 30 minutes
-
-// Get or create a session
+// Get or create a session (now backed by SQLite)
 function getOrCreateSession(sessionId) {
-  if (sessionId && sessions.has(sessionId)) {
-    const session = sessions.get(sessionId);
-    session.lastActivity = Date.now();
-    return session;
+  if (sessionId) {
+    const existing = getSessionById(sessionId);
+    if (existing) {
+      updateSessionActivity(sessionId);
+      return { id: existing.id, isNew: false };
+    }
   }
 
   const id = sessionId || uuidv4();
-  const session = {
-    id,
-    messages: [],
-    createdAt: Date.now(),
-    lastActivity: Date.now()
-  };
-  sessions.set(id, session);
-  return session;
+  createSession(id);
+  return { id, isNew: true };
 }
 
 export function getSession(sessionId) {
-  const session = sessions.get(sessionId);
-  if (session) {
-    session.lastActivity = Date.now();
-  }
-  return session || null;
-}
+  const session = getSessionById(sessionId);
+  if (!session) return null;
 
-// Cleanup expired sessions
-export function cleanupSessions() {
-  const now = Date.now();
-  let cleaned = 0;
-  for (const [id, session] of sessions) {
-    if (now - session.lastActivity > SESSION_TTL) {
-      sessions.delete(id);
-      cleaned++;
-    }
-  }
-  if (cleaned > 0) {
-    console.log(`Cleaned up ${cleaned} expired sessions. Active: ${sessions.size}`);
-  }
+  updateSessionActivity(sessionId);
+  const messages = getMessagesBySession(sessionId);
+  return { ...session, messages };
 }
 
 // Send message to Claude CLI and get response
 export async function sendMessageToClaude(message, sessionId = null) {
   const session = getOrCreateSession(sessionId);
+  const messages = getMessagesBySession(session.id);
 
   // Store user message
-  session.messages.push({
-    role: 'user',
-    content: message,
-    timestamp: new Date().toISOString()
-  });
+  addMessage(session.id, 'user', message);
 
   const claudePath = process.env.CLAUDE_CLI_PATH || 'claude';
-  const response = await executeClaude(claudePath, message, session);
+  const hasPriorMessages = messages.length > 0;
+  const response = await executeClaude(claudePath, message, hasPriorMessages);
 
   // Store assistant message
-  session.messages.push({
-    role: 'assistant',
-    content: response,
-    timestamp: new Date().toISOString()
-  });
+  addMessage(session.id, 'assistant', response);
 
   return {
     sessionId: session.id,
@@ -77,21 +57,15 @@ export async function sendMessageToClaude(message, sessionId = null) {
 // Send message to Claude CLI with streaming callback
 export async function sendMessageToClaudeStream(message, sessionId, onChunk) {
   const session = getOrCreateSession(sessionId);
+  const messages = getMessagesBySession(session.id);
 
-  session.messages.push({
-    role: 'user',
-    content: message,
-    timestamp: new Date().toISOString()
-  });
+  addMessage(session.id, 'user', message);
 
   const claudePath = process.env.CLAUDE_CLI_PATH || 'claude';
-  const response = await executeClaudeStream(claudePath, message, session, onChunk);
+  const hasPriorMessages = messages.length > 0;
+  const response = await executeClaudeStream(claudePath, message, hasPriorMessages, onChunk);
 
-  session.messages.push({
-    role: 'assistant',
-    content: response,
-    timestamp: new Date().toISOString()
-  });
+  addMessage(session.id, 'assistant', response);
 
   return {
     sessionId: session.id,
@@ -101,12 +75,11 @@ export async function sendMessageToClaudeStream(message, sessionId, onChunk) {
 }
 
 // Execute Claude CLI and collect full response
-function executeClaude(claudePath, message, session) {
+function executeClaude(claudePath, message, hasPriorMessages) {
   return new Promise((resolve, reject) => {
     const args = ['--print', '--output-format', 'text'];
 
-    // Add conversation history as context via prompt
-    if (session.messages.length > 1) {
+    if (hasPriorMessages) {
       args.push('--continue');
     }
 
@@ -114,7 +87,7 @@ function executeClaude(claudePath, message, session) {
 
     const claudeProcess = spawn(claudePath, args, {
       env: { ...process.env },
-      timeout: 120000 // 2 minute timeout
+      timeout: 120000
     });
 
     let stdout = '';
@@ -148,11 +121,11 @@ function executeClaude(claudePath, message, session) {
 }
 
 // Execute Claude CLI with streaming output
-function executeClaudeStream(claudePath, message, session, onChunk) {
+function executeClaudeStream(claudePath, message, hasPriorMessages, onChunk) {
   return new Promise((resolve, reject) => {
     const args = ['--print', '--output-format', 'text'];
 
-    if (session.messages.length > 1) {
+    if (hasPriorMessages) {
       args.push('--continue');
     }
 

@@ -1,5 +1,6 @@
 import express from 'express';
 import { sendMessageToClaude, getSession } from '../services/claude.js';
+import { getMessagesBySession } from '../services/database.js';
 
 const router = express.Router();
 
@@ -42,12 +43,8 @@ router.get('/history/:sessionId', async (req, res) => {
       return res.status(400).json({ error: 'Invalid session ID format' });
     }
 
-    const session = getSession(sessionId);
-    if (!session) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
-
-    res.json({ messages: session.messages });
+    const messages = getMessagesBySession(sessionId);
+    res.json({ messages });
   } catch (error) {
     console.error('Error fetching history:', error);
     res.status(500).json({ error: 'Failed to fetch history' });
