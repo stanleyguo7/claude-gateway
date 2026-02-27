@@ -1,6 +1,14 @@
 import express from 'express';
 import { sendMessageToClaude, getSession } from '../services/claude.js';
-import { getMessagesBySession } from '../services/database.js';
+import {
+  getMessagesBySession,
+  getAllSessions,
+  createSession,
+  deleteSession,
+  updateSessionTitle,
+  getSessionById
+} from '../services/database.js';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
@@ -12,7 +20,6 @@ router.post('/message', async (req, res) => {
   try {
     const { message, sessionId, model, systemPrompt } = req.body;
 
-    // Validate message
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Message must be a non-empty string' });
     }
@@ -21,7 +28,6 @@ router.post('/message', async (req, res) => {
       return res.status(400).json({ error: `Message exceeds maximum length of ${MAX_MESSAGE_LENGTH} characters` });
     }
 
-    // Validate sessionId format if provided
     if (sessionId && !UUID_REGEX.test(sessionId)) {
       return res.status(400).json({ error: 'Invalid session ID format' });
     }
@@ -52,6 +58,79 @@ router.get('/history/:sessionId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching history:', error);
     res.status(500).json({ error: 'Failed to fetch history' });
+  }
+});
+
+// Get all sessions
+router.get('/sessions', (req, res) => {
+  try {
+    const sessions = getAllSessions();
+    res.json({ sessions });
+  } catch (error) {
+    console.error('Error fetching sessions:', error);
+    res.status(500).json({ error: 'Failed to fetch sessions' });
+  }
+});
+
+// Create a new session
+router.post('/sessions', (req, res) => {
+  try {
+    const { title } = req.body;
+    const id = uuidv4();
+    const session = createSession(id, title);
+    res.status(201).json({ session });
+  } catch (error) {
+    console.error('Error creating session:', error);
+    res.status(500).json({ error: 'Failed to create session' });
+  }
+});
+
+// Delete a session
+router.delete('/sessions/:sessionId', (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    if (!UUID_REGEX.test(sessionId)) {
+      return res.status(400).json({ error: 'Invalid session ID format' });
+    }
+
+    const session = getSessionById(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    deleteSession(sessionId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting session:', error);
+    res.status(500).json({ error: 'Failed to delete session' });
+  }
+});
+
+// Rename a session
+router.patch('/sessions/:sessionId', (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { title } = req.body;
+
+    if (!UUID_REGEX.test(sessionId)) {
+      return res.status(400).json({ error: 'Invalid session ID format' });
+    }
+
+    if (!title || typeof title !== 'string') {
+      return res.status(400).json({ error: 'Title must be a non-empty string' });
+    }
+
+    const session = getSessionById(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    updateSessionTitle(sessionId, title.trim());
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating session:', error);
+    res.status(500).json({ error: 'Failed to update session' });
   }
 });
 

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ChatMessage from './components/ChatMessage';
 import MessageInput from './components/MessageInput';
-import { sendMessage } from './services/api';
+import SessionSidebar from './components/SessionSidebar';
+import { sendMessage, getSessions, createSession, deleteSessionApi, renameSession, getHistory } from './services/api';
 import wsService from './services/websocket';
 import './App.css';
 
@@ -14,8 +15,10 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState(null);
+  const [sessions, setSessions] = useState([]);
   const [useStreaming, setUseStreaming] = useState(true);
   const [wsConnected, setWsConnected] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef(null);
   const streamingMsgId = useRef(null);
 
@@ -26,6 +29,84 @@ function App() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Load sessions on mount
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  const loadSessions = async () => {
+    try {
+      const data = await getSessions();
+      setSessions(data);
+    } catch (error) {
+      console.error('Failed to load sessions:', error);
+    }
+  };
+
+  // Load messages when session changes
+  const loadSessionMessages = useCallback(async (sid) => {
+    if (!sid) {
+      setMessages([]);
+      return;
+    }
+    try {
+      const data = await getHistory(sid);
+      setMessages(
+        data.messages.map((msg) => ({
+          id: nextMessageId(),
+          text: msg.content,
+          sender: msg.role === 'user' ? 'user' : 'assistant',
+          timestamp: new Date(msg.timestamp)
+        }))
+      );
+    } catch (error) {
+      console.error('Failed to load session messages:', error);
+      setMessages([]);
+    }
+  }, []);
+
+  const handleSelectSession = useCallback((sid) => {
+    setSessionId(sid);
+    loadSessionMessages(sid);
+    setSidebarOpen(false);
+  }, [loadSessionMessages]);
+
+  const handleNewSession = useCallback(async () => {
+    try {
+      const session = await createSession('New Chat');
+      setSessions(prev => [session, ...prev]);
+      setSessionId(session.id);
+      setMessages([]);
+      setSidebarOpen(false);
+    } catch (error) {
+      console.error('Failed to create session:', error);
+    }
+  }, []);
+
+  const handleDeleteSession = useCallback(async (sid) => {
+    try {
+      await deleteSessionApi(sid);
+      setSessions(prev => prev.filter(s => s.id !== sid));
+      if (sessionId === sid) {
+        setSessionId(null);
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error('Failed to delete session:', error);
+    }
+  }, [sessionId]);
+
+  const handleRenameSession = useCallback(async (sid, title) => {
+    try {
+      await renameSession(sid, title);
+      setSessions(prev =>
+        prev.map(s => (s.id === sid ? { ...s, title } : s))
+      );
+    } catch (error) {
+      console.error('Failed to rename session:', error);
+    }
+  }, []);
 
   // WebSocket setup
   useEffect(() => {
@@ -73,6 +154,8 @@ function App() {
       streamingMsgId.current = null;
       if (data.sessionId) {
         setSessionId(data.sessionId);
+        // Refresh session list to pick up new session
+        loadSessions();
       }
       setIsLoading(false);
     });
@@ -121,7 +204,6 @@ function App() {
         isError: true
       }]);
       setIsLoading(false);
-      // Fallback to REST
       handleSendRest(text);
     }
   }, [sessionId]);
@@ -141,6 +223,7 @@ function App() {
       const response = await sendMessage(text, sessionId);
       if (!sessionId) {
         setSessionId(response.sessionId);
+        loadSessions();
       }
       setMessages(prev => [...prev, {
         id: nextMessageId(),
@@ -172,8 +255,21 @@ function App() {
 
   return (
     <div className="app">
+      <SessionSidebar
+        sessions={sessions}
+        activeSessionId={sessionId}
+        onSelectSession={handleSelectSession}
+        onNewSession={handleNewSession}
+        onDeleteSession={handleDeleteSession}
+        onRenameSession={handleRenameSession}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+      />
+
       <header className="app-header">
-        <h1>Claude Gateway</h1>
+        <div className="header-left">
+          <h1>Claude Gateway</h1>
+        </div>
         <div className="header-controls">
           <span className={`ws-status ${wsConnected ? 'connected' : 'disconnected'}`}>
             {wsConnected ? 'Connected' : 'Disconnected'}
