@@ -1,4 +1,5 @@
 import express from 'express';
+import logger from '../services/logger.js';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -81,7 +82,7 @@ router.post('/', upload.array('files', 5), (req, res) => {
 
     res.json({ files });
   } catch (error) {
-    console.error('Upload error:', error);
+    logger.error({ err: error }, 'Upload error');
     res.status(500).json({ error: 'Failed to upload files' });
   }
 });
@@ -123,7 +124,7 @@ export function cleanupUploads() {
       }
     }
   } catch (error) {
-    console.error('Upload cleanup error:', error);
+    logger.error({ err: error }, 'Upload cleanup error');
   }
 }
 

@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
+import logger from './logger.js';
 import {
   createSession,
   getSessionById,
@@ -183,7 +184,7 @@ function executeClaude(claudePath, message, hasPriorMessages, options = {}) {
       if (code === 0) {
         resolve(fullText.trim() || 'No response from Claude.');
       } else {
-        console.error(`Claude CLI exited with code ${code}. stderr: ${stderr}`);
+        logger.error({ code, stderr }, 'Claude CLI exited with error');
         reject(new Error(`Claude CLI error (code ${code}): ${stderr.trim() || 'Unknown error'}`));
       }
     });

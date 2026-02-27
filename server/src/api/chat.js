@@ -1,4 +1,5 @@
 import express from 'express';
+import logger from '../services/logger.js';
 import { sendMessageToClaude, getSession } from '../services/claude.js';
 import {
   getMessagesBySession,
@@ -39,7 +40,7 @@ router.post('/message', async (req, res) => {
     const response = await sendMessageToClaude(message, sessionId, options);
     res.json({ response, sessionId: response.sessionId });
   } catch (error) {
-    console.error('Error processing message:', error);
+    logger.error({ err: error }, 'Error processing message');
     res.status(500).json({ error: 'Failed to process message' });
   }
 });
@@ -56,7 +57,7 @@ router.get('/history/:sessionId', async (req, res) => {
     const messages = getMessagesBySession(sessionId);
     res.json({ messages });
   } catch (error) {
-    console.error('Error fetching history:', error);
+    logger.error({ err: error }, 'Error fetching history');
     res.status(500).json({ error: 'Failed to fetch history' });
   }
 });
@@ -67,7 +68,7 @@ router.get('/sessions', (req, res) => {
     const sessions = getAllSessions();
     res.json({ sessions });
   } catch (error) {
-    console.error('Error fetching sessions:', error);
+    logger.error({ err: error }, 'Error fetching sessions');
     res.status(500).json({ error: 'Failed to fetch sessions' });
   }
 });
@@ -80,7 +81,7 @@ router.post('/sessions', (req, res) => {
     const session = createSession(id, title);
     res.status(201).json({ session });
   } catch (error) {
-    console.error('Error creating session:', error);
+    logger.error({ err: error }, 'Error creating session');
     res.status(500).json({ error: 'Failed to create session' });
   }
 });
@@ -102,7 +103,7 @@ router.delete('/sessions/:sessionId', (req, res) => {
     deleteSession(sessionId);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting session:', error);
+    logger.error({ err: error }, 'Error deleting session');
     res.status(500).json({ error: 'Failed to delete session' });
   }
 });
@@ -129,7 +130,7 @@ router.patch('/sessions/:sessionId', (req, res) => {
     updateSessionTitle(sessionId, title.trim());
     res.json({ success: true });
   } catch (error) {
-    console.error('Error updating session:', error);
+    logger.error({ err: error }, 'Error updating session');
     res.status(500).json({ error: 'Failed to update session' });
   }
 });
@@ -180,7 +181,7 @@ router.get('/export/:sessionId', (req, res) => {
       res.json(exportData);
     }
   } catch (error) {
-    console.error('Error exporting chat:', error);
+    logger.error({ err: error }, 'Error exporting chat');
     res.status(500).json({ error: 'Failed to export chat' });
   }
 });

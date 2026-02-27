@@ -7,6 +7,7 @@ import chatRouter from './api/chat.js';
 import uploadRouter, { cleanupUploads } from './api/upload.js';
 import { setupWebSocket } from './services/websocket.js';
 import { initDatabase, closeDatabase } from './services/database.js';
+import logger from './services/logger.js';
 
 dotenv.config();
 
@@ -62,6 +63,20 @@ function rateLimit(req, res, next) {
 
 app.use('/api', rateLimit);
 
+// Request logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    logger.info({
+      method: req.method,
+      url: req.originalUrl,
+      status: res.statusCode,
+      duration: Date.now() - start
+    }, `${req.method} ${req.originalUrl} ${res.statusCode}`);
+  });
+  next();
+});
+
 // Clean up stale rate limit entries periodically
 setInterval(() => {
   const now = Date.now();
@@ -91,7 +106,7 @@ app.use((err, req, res, next) => {
   if (err.message === 'Not allowed by CORS') {
     return res.status(403).json({ error: 'CORS: origin not allowed' });
   }
-  console.error('Unhandled error:', err);
+  logger.error({ err }, 'Unhandled error');
   res.status(500).json({ error: 'Internal server error' });
 });
 
@@ -103,13 +118,13 @@ const wss = new WebSocketServer({ server });
 setupWebSocket(wss);
 
 server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`WebSocket server running on ws://localhost:${PORT}`);
+  logger.info(`Server running on http://localhost:${PORT}`);
+  logger.info(`WebSocket server running on ws://localhost:${PORT}`);
 });
 
 // Graceful shutdown
 function shutdown(signal) {
-  console.log(`\n${signal} received. Shutting down gracefully...`);
+  logger.info(`${signal} received. Shutting down gracefully...`);
 
   // Close database
   closeDatabase();
@@ -120,13 +135,13 @@ function shutdown(signal) {
   });
 
   server.close(() => {
-    console.log('Server closed.');
+    logger.info('Server closed.');
     process.exit(0);
   });
 
   // Force shutdown after 5 seconds
   setTimeout(() => {
-    console.error('Forced shutdown after timeout.');
+    logger.error('Forced shutdown after timeout.');
     process.exit(1);
   }, 5000);
 }

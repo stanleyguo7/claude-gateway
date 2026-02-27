@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import logger from './logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, '../../data/gateway.db');
@@ -34,7 +35,7 @@ export function initDatabase(inMemory = false) {
     CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity);
   `);
 
-  console.log('Database initialized at', DB_PATH);
+  logger.info({ path: inMemory ? ':memory:' : DB_PATH }, 'Database initialized');
   return db;
 }
 
@@ -99,6 +100,6 @@ export function getMessagesBySession(sessionId) {
 export function closeDatabase() {
   if (db) {
     db.close();
-    console.log('Database closed.');
+    logger.info('Database closed');
   }
 }

@@ -1,5 +1,6 @@
 import { sendMessageToClaudeStream } from './claude.js';
 import { readUploadedFile } from '../api/upload.js';
+import logger from './logger.js';
 
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
@@ -13,12 +14,12 @@ export function setupWebSocket(wss) {
     // Origin validation
     const origin = req.headers.origin;
     if (origin && !ALLOWED_ORIGINS.includes(origin)) {
-      console.warn(`WebSocket connection rejected from origin: ${origin}`);
+      logger.warn({ origin }, 'WebSocket connection rejected');
       ws.close(1008, 'Origin not allowed');
       return;
     }
 
-    console.log('Client connected via WebSocket');
+    logger.info('Client connected via WebSocket');
 
     ws.on('message', async (data) => {
       try {
@@ -90,7 +91,7 @@ export function setupWebSocket(wss) {
               }));
             }
           } catch (error) {
-            console.error('Claude CLI error:', error.message);
+            logger.error({ err: error }, 'Claude CLI error');
             if (ws.readyState === ws.OPEN) {
               ws.send(JSON.stringify({
                 type: 'error',
@@ -104,7 +105,7 @@ export function setupWebSocket(wss) {
           ws.send(JSON.stringify({ type: 'error', error: `Unknown message type: ${type}` }));
         }
       } catch (error) {
-        console.error('WebSocket message parse error:', error.message);
+        logger.error({ err: error }, 'WebSocket message parse error');
         if (ws.readyState === ws.OPEN) {
           ws.send(JSON.stringify({ type: 'error', error: 'Invalid message format' }));
         }
@@ -112,11 +113,11 @@ export function setupWebSocket(wss) {
     });
 
     ws.on('error', (error) => {
-      console.error('WebSocket error:', error.message);
+      logger.error({ err: error }, 'WebSocket error');
     });
 
     ws.on('close', (code, reason) => {
-      console.log(`Client disconnected. Code: ${code}, Reason: ${reason || 'none'}`);
+      logger.info({ code, reason: reason || 'none' }, 'Client disconnected');
     });
 
     // Send welcome message
