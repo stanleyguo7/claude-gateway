@@ -7,8 +7,8 @@ const DB_PATH = path.join(__dirname, '../../data/gateway.db');
 
 let db;
 
-export function initDatabase() {
-  db = new Database(DB_PATH);
+export function initDatabase(inMemory = false) {
+  db = new Database(inMemory ? ':memory:' : DB_PATH);
 
   // Enable WAL mode for better concurrent read performance
   db.pragma('journal_mode = WAL');
