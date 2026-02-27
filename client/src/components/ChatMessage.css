@@ -48,8 +48,11 @@
 }
 
 .message-text {
-  line-height: 1.5;
+  line-height: 1.6;
   word-wrap: break-word;
+}
+
+.message.user .message-text {
   white-space: pre-wrap;
 }
 
@@ -66,4 +69,179 @@
 
 .message.assistant .message-timestamp {
   color: rgba(255, 255, 255, 0.5);
+}
+
+/* Markdown styles for assistant messages */
+.message.assistant .message-text p {
+  margin: 0.5em 0;
+}
+
+.message.assistant .message-text p:first-child {
+  margin-top: 0;
+}
+
+.message.assistant .message-text p:last-child {
+  margin-bottom: 0;
+}
+
+.message.assistant .message-text h1,
+.message.assistant .message-text h2,
+.message.assistant .message-text h3,
+.message.assistant .message-text h4,
+.message.assistant .message-text h5,
+.message.assistant .message-text h6 {
+  margin: 1em 0 0.5em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.message.assistant .message-text h1:first-child,
+.message.assistant .message-text h2:first-child,
+.message.assistant .message-text h3:first-child {
+  margin-top: 0;
+}
+
+.message.assistant .message-text h1 { font-size: 1.4em; }
+.message.assistant .message-text h2 { font-size: 1.2em; }
+.message.assistant .message-text h3 { font-size: 1.1em; }
+
+/* Inline code */
+.inline-code {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.875em;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Code block wrapper */
+.code-block-wrapper {
+  margin: 0.75em 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.code-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.75rem;
+}
+
+.code-language {
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.copy-button {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.copy-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+/* Lists */
+.message.assistant .message-text ul,
+.message.assistant .message-text ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.message.assistant .message-text li {
+  margin: 0.25em 0;
+  line-height: 1.5;
+}
+
+.message.assistant .message-text li > ul,
+.message.assistant .message-text li > ol {
+  margin: 0.25em 0;
+}
+
+/* Blockquote */
+.message.assistant .message-text blockquote {
+  margin: 0.75em 0;
+  padding: 0.5em 1em;
+  border-left: 3px solid rgba(255, 107, 107, 0.5);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 0 4px 4px 0;
+}
+
+.message.assistant .message-text blockquote p {
+  margin: 0.25em 0;
+}
+
+/* Table */
+.message.assistant .message-text table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75em 0;
+  font-size: 0.9em;
+}
+
+.message.assistant .message-text th,
+.message.assistant .message-text td {
+  padding: 0.5em 0.75em;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  text-align: left;
+}
+
+.message.assistant .message-text th {
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+}
+
+.message.assistant .message-text tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Horizontal rule */
+.message.assistant .message-text hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  margin: 1em 0;
+}
+
+/* Strong and emphasis */
+.message.assistant .message-text strong {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.message.assistant .message-text em {
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Links */
+.message.assistant .message-text a {
+  color: #ff8a8a;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.message.assistant .message-text a:hover {
+  border-bottom-color: #ff8a8a;
+}
+
+/* Images */
+.message.assistant .message-text img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 0.5em 0;
 }
