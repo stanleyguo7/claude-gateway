@@ -1,0 +1,26 @@
+{
+  "name": "claude-gateway",
+  "version": "1.0.0",
+  "description": "Gateway service for Claude Code CLI with web interface",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "commit": "git add . && git commit -m",
+    "push": "git push origin main",
+    "save": "git add . && git commit -m 'chore: save progress' && git push origin main"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": ["claude", "gateway", "chat", "ai"],
+  "author": "",
+  "license": "MIT"
+}
