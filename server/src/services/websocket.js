@@ -22,7 +22,7 @@ export function setupWebSocket(wss) {
     ws.on('message', async (data) => {
       try {
         const parsed = JSON.parse(data.toString());
-        const { type, message, sessionId } = parsed;
+        const { type, message, sessionId, model, systemPrompt } = parsed;
 
         if (type === 'chat') {
           if (!message || typeof message !== 'string') {
@@ -33,6 +33,10 @@ export function setupWebSocket(wss) {
           // Send start indicator
           ws.send(JSON.stringify({ type: 'stream_start', sessionId }));
 
+          const options = {};
+          if (model) options.model = model;
+          if (systemPrompt) options.systemPrompt = systemPrompt;
+
           try {
             const response = await sendMessageToClaudeStream(
               message,
@@ -42,7 +46,8 @@ export function setupWebSocket(wss) {
                 if (ws.readyState === ws.OPEN) {
                   ws.send(JSON.stringify({ type: 'stream_chunk', chunk }));
                 }
-              }
+              },
+              options
             );
 
             // Send complete response

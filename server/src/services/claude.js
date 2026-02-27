@@ -32,8 +32,37 @@ export function getSession(sessionId) {
   return { ...session, messages };
 }
 
+// Build common CLI args
+function buildCliArgs(message, hasPriorMessages, options = {}) {
+  const args = ['--print'];
+
+  // Model selection
+  const model = options.model || process.env.DEFAULT_MODEL;
+  if (model) {
+    args.push('--model', model);
+  }
+
+  // System prompt
+  const systemPrompt = options.systemPrompt || process.env.DEFAULT_SYSTEM_PROMPT;
+  if (systemPrompt) {
+    args.push('--system-prompt', systemPrompt);
+  }
+
+  // Continue conversation if there are prior messages
+  if (hasPriorMessages) {
+    args.push('--continue');
+  }
+
+  // Session ID for Claude CLI native session management
+  if (options.sessionId) {
+    args.push('--session-id', options.sessionId);
+  }
+
+  return args;
+}
+
 // Send message to Claude CLI and get response
-export async function sendMessageToClaude(message, sessionId = null) {
+export async function sendMessageToClaude(message, sessionId = null, options = {}) {
   const session = getOrCreateSession(sessionId);
   const messages = getMessagesBySession(session.id);
 
@@ -42,7 +71,10 @@ export async function sendMessageToClaude(message, sessionId = null) {
 
   const claudePath = process.env.CLAUDE_CLI_PATH || 'claude';
   const hasPriorMessages = messages.length > 0;
-  const response = await executeClaude(claudePath, message, hasPriorMessages);
+  const response = await executeClaude(claudePath, message, hasPriorMessages, {
+    ...options,
+    sessionId: session.id
+  });
 
   // Store assistant message
   addMessage(session.id, 'assistant', response);
@@ -55,7 +87,7 @@ export async function sendMessageToClaude(message, sessionId = null) {
 }
 
 // Send message to Claude CLI with streaming callback
-export async function sendMessageToClaudeStream(message, sessionId, onChunk) {
+export async function sendMessageToClaudeStream(message, sessionId, onChunk, options = {}) {
   const session = getOrCreateSession(sessionId);
   const messages = getMessagesBySession(session.id);
 
@@ -63,7 +95,10 @@ export async function sendMessageToClaudeStream(message, sessionId, onChunk) {
 
   const claudePath = process.env.CLAUDE_CLI_PATH || 'claude';
   const hasPriorMessages = messages.length > 0;
-  const response = await executeClaudeStream(claudePath, message, hasPriorMessages, onChunk);
+  const response = await executeClaudeStream(claudePath, message, hasPriorMessages, onChunk, {
+    ...options,
+    sessionId: session.id
+  });
 
   addMessage(session.id, 'assistant', response);
 
@@ -74,15 +109,11 @@ export async function sendMessageToClaudeStream(message, sessionId, onChunk) {
   };
 }
 
-// Execute Claude CLI and collect full response
-function executeClaude(claudePath, message, hasPriorMessages) {
+// Execute Claude CLI with stream-json output, collect full response
+function executeClaude(claudePath, message, hasPriorMessages, options = {}) {
   return new Promise((resolve, reject) => {
-    const args = ['--print', '--output-format', 'text'];
-
-    if (hasPriorMessages) {
-      args.push('--continue');
-    }
-
+    const args = buildCliArgs(message, hasPriorMessages, options);
+    args.push('--output-format', 'stream-json');
     args.push(message);
 
     const claudeProcess = spawn(claudePath, args, {
@@ -90,11 +121,32 @@ function executeClaude(claudePath, message, hasPriorMessages) {
       timeout: 120000
     });
 
-    let stdout = '';
+    let fullText = '';
     let stderr = '';
+    let buffer = '';
 
     claudeProcess.stdout.on('data', (data) => {
-      stdout += data.toString();
+      buffer += data.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const event = JSON.parse(line);
+          if (event.type === 'assistant' && event.message?.content) {
+            for (const block of event.message.content) {
+              if (block.type === 'text') {
+                fullText += block.text;
+              }
+            }
+          } else if (event.type === 'content_block_delta' && event.delta?.text) {
+            fullText += event.delta.text;
+          }
+        } catch {
+          // Non-JSON line, ignore
+        }
+      }
     });
 
     claudeProcess.stderr.on('data', (data) => {
@@ -110,8 +162,26 @@ function executeClaude(claudePath, message, hasPriorMessages) {
     });
 
     claudeProcess.on('close', (code) => {
+      // Process remaining buffer
+      if (buffer.trim()) {
+        try {
+          const event = JSON.parse(buffer);
+          if (event.type === 'assistant' && event.message?.content) {
+            for (const block of event.message.content) {
+              if (block.type === 'text') {
+                fullText += block.text;
+              }
+            }
+          } else if (event.type === 'content_block_delta' && event.delta?.text) {
+            fullText += event.delta.text;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       if (code === 0) {
-        resolve(stdout.trim() || 'No response from Claude.');
+        resolve(fullText.trim() || 'No response from Claude.');
       } else {
         console.error(`Claude CLI exited with code ${code}. stderr: ${stderr}`);
         reject(new Error(`Claude CLI error (code ${code}): ${stderr.trim() || 'Unknown error'}`));
@@ -120,15 +190,11 @@ function executeClaude(claudePath, message, hasPriorMessages) {
   });
 }
 
-// Execute Claude CLI with streaming output
-function executeClaudeStream(claudePath, message, hasPriorMessages, onChunk) {
+// Execute Claude CLI with streaming output (stream-json format)
+function executeClaudeStream(claudePath, message, hasPriorMessages, onChunk, options = {}) {
   return new Promise((resolve, reject) => {
-    const args = ['--print', '--output-format', 'text'];
-
-    if (hasPriorMessages) {
-      args.push('--continue');
-    }
-
+    const args = buildCliArgs(message, hasPriorMessages, options);
+    args.push('--output-format', 'stream-json');
     args.push(message);
 
     const claudeProcess = spawn(claudePath, args, {
@@ -136,14 +202,41 @@ function executeClaudeStream(claudePath, message, hasPriorMessages, onChunk) {
       timeout: 120000
     });
 
-    let fullResponse = '';
+    let fullText = '';
     let stderr = '';
+    let buffer = '';
 
     claudeProcess.stdout.on('data', (data) => {
-      const chunk = data.toString();
-      fullResponse += chunk;
-      if (onChunk) {
-        onChunk(chunk);
+      buffer += data.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const event = JSON.parse(line);
+
+          if (event.type === 'assistant' && event.message?.content) {
+            for (const block of event.message.content) {
+              if (block.type === 'text') {
+                fullText += block.text;
+                if (onChunk) onChunk(block.text, event);
+              }
+            }
+          } else if (event.type === 'content_block_delta' && event.delta?.text) {
+            fullText += event.delta.text;
+            if (onChunk) onChunk(event.delta.text, event);
+          }
+
+          // Pass through raw events for tool_use visualization (Phase 3)
+          if (onChunk && (event.type === 'content_block_start' || event.type === 'content_block_stop')) {
+            onChunk(null, event);
+          }
+        } catch {
+          // Non-JSON line, treat as raw text
+          fullText += line;
+          if (onChunk) onChunk(line, null);
+        }
       }
     });
 
@@ -160,8 +253,21 @@ function executeClaudeStream(claudePath, message, hasPriorMessages, onChunk) {
     });
 
     claudeProcess.on('close', (code) => {
+      // Process remaining buffer
+      if (buffer.trim()) {
+        try {
+          const event = JSON.parse(buffer);
+          if (event.type === 'content_block_delta' && event.delta?.text) {
+            fullText += event.delta.text;
+            if (onChunk) onChunk(event.delta.text, event);
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       if (code === 0) {
-        resolve(fullResponse.trim() || 'No response from Claude.');
+        resolve(fullText.trim() || 'No response from Claude.');
       } else {
         reject(new Error(`Claude CLI error (code ${code}): ${stderr.trim() || 'Unknown error'}`));
       }

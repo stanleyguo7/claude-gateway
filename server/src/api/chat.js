@@ -10,7 +10,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 // Send a message to Claude
 router.post('/message', async (req, res) => {
   try {
-    const { message, sessionId } = req.body;
+    const { message, sessionId, model, systemPrompt } = req.body;
 
     // Validate message
     if (!message || typeof message !== 'string') {
@@ -26,7 +26,11 @@ router.post('/message', async (req, res) => {
       return res.status(400).json({ error: 'Invalid session ID format' });
     }
 
-    const response = await sendMessageToClaude(message, sessionId);
+    const options = {};
+    if (model) options.model = model;
+    if (systemPrompt) options.systemPrompt = systemPrompt;
+
+    const response = await sendMessageToClaude(message, sessionId, options);
     res.json({ response, sessionId: response.sessionId });
   } catch (error) {
     console.error('Error processing message:', error);
