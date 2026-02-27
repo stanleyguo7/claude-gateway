@@ -56,11 +56,17 @@
   white-space: pre-wrap;
 }
 
+.message-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
 .message-timestamp {
   font-size: 0.75rem;
   opacity: 0.6;
-  margin-top: 0.5rem;
-  text-align: right;
 }
 
 .message.user .message-timestamp {
@@ -69,6 +75,26 @@
 
 .message.assistant .message-timestamp {
   color: rgba(255, 255, 255, 0.5);
+}
+
+.message-delete-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0 0.2rem;
+  opacity: 0;
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.message:hover .message-delete-btn {
+  opacity: 1;
+}
+
+.message-delete-btn:hover {
+  color: #ff6b6b;
 }
 
 /* Markdown styles for assistant messages */

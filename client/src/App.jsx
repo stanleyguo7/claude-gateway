@@ -7,6 +7,12 @@ import { sendMessage, getSessions, createSession, deleteSessionApi, renameSessio
 import wsService from './services/websocket';
 import './App.css';
 
+// Simple token estimation (~4 chars per token for English)
+function estimateTokens(text) {
+  if (!text) return 0;
+  return Math.ceil(text.length / 4);
+}
+
 let messageIdCounter = 0;
 function nextMessageId() {
   return `msg-${Date.now()}-${++messageIdCounter}`;
@@ -298,6 +304,12 @@ function App() {
     }
   }, [sessionId]);
 
+  const handleDeleteMessage = useCallback((msgId) => {
+    setMessages(prev => prev.filter(m => m.id !== msgId));
+  }, []);
+
+  const totalTokens = messages.reduce((sum, m) => sum + estimateTokens(m.text), 0);
+
   const handleSendMessage = useCallback((text, files) => {
     if (useStreaming && wsConnected) {
       handleSendStreaming(text, files);
@@ -324,6 +336,11 @@ function App() {
           <h1>Claude Gateway</h1>
         </div>
         <div className="header-controls">
+          {messages.length > 0 && (
+            <span className="token-count" title="Estimated token count">
+              ~{totalTokens.toLocaleString()} tokens
+            </span>
+          )}
           {sessionId && (
             <div className="export-dropdown">
               <button className="export-btn" title="Export chat">
@@ -372,7 +389,7 @@ function App() {
           )}
 
           {messages.map((message) => (
-            <ChatMessage key={message.id} message={message} />
+            <ChatMessage key={message.id} message={message} onDelete={handleDeleteMessage} />
           ))}
 
           {isLoading && !streamingMsgId.current && (

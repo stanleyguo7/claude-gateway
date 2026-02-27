@@ -57,7 +57,7 @@ function CodeBlock({ inline, className, children, ...props }) {
   );
 }
 
-function ChatMessage({ message }) {
+function ChatMessage({ message, onDelete }) {
   const { text, sender, timestamp, isError, toolCalls } = message;
 
   const renderContent = () => {
@@ -89,8 +89,19 @@ function ChatMessage({ message }) {
     <div className={`message ${sender} ${isError ? 'error' : ''}`}>
       <div className="message-content">
         <div className="message-text">{renderContent()}</div>
-        <div className="message-timestamp">
-          {new Date(timestamp).toLocaleTimeString()}
+        <div className="message-footer">
+          <span className="message-timestamp">
+            {new Date(timestamp).toLocaleTimeString()}
+          </span>
+          {onDelete && !message.isStreaming && (
+            <button
+              className="message-delete-btn"
+              onClick={() => onDelete(message.id)}
+              title="Remove from context"
+            >
+              &times;
+            </button>
+          )}
         </div>
       </div>
     </div>
