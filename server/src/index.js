@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { WebSocketServer } from 'ws';
 import http from 'http';
 import chatRouter from './api/chat.js';
+import uploadRouter, { cleanupUploads } from './api/upload.js';
 import { setupWebSocket } from './services/websocket.js';
 import { initDatabase, closeDatabase } from './services/database.js';
 
@@ -73,6 +74,10 @@ setInterval(() => {
 
 // Routes
 app.use('/api/chat', chatRouter);
+app.use('/api/upload', uploadRouter);
+
+// Upload cleanup interval (every 30 minutes)
+setInterval(() => cleanupUploads(), 30 * 60 * 1000);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

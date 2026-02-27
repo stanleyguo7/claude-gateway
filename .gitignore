@@ -41,3 +41,7 @@ tmp/
 server/data/*.db
 server/data/*.db-wal
 server/data/*.db-shm
+
+# Uploaded files
+server/uploads/*
+!server/uploads/.gitkeep

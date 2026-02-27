@@ -1,4 +1,5 @@
 import { sendMessageToClaudeStream } from './claude.js';
+import { readUploadedFile } from '../api/upload.js';
 
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
@@ -22,12 +23,27 @@ export function setupWebSocket(wss) {
     ws.on('message', async (data) => {
       try {
         const parsed = JSON.parse(data.toString());
-        const { type, message, sessionId, model, systemPrompt } = parsed;
+        const { type, message, sessionId, model, systemPrompt, files } = parsed;
 
         if (type === 'chat') {
           if (!message || typeof message !== 'string') {
             ws.send(JSON.stringify({ type: 'error', error: 'Message must be a non-empty string' }));
             return;
+          }
+
+          // Build full message with file content
+          let fullMessage = message;
+          if (files && Array.isArray(files) && files.length > 0) {
+            const fileParts = [];
+            for (const filename of files) {
+              const fileData = readUploadedFile(filename);
+              if (fileData && fileData.type === 'text') {
+                fileParts.push(`\n\n--- File: ${filename} ---\n${fileData.content}\n--- End of file ---`);
+              }
+            }
+            if (fileParts.length > 0) {
+              fullMessage = message + fileParts.join('');
+            }
           }
 
           // Send start indicator
@@ -39,7 +55,7 @@ export function setupWebSocket(wss) {
 
           try {
             const response = await sendMessageToClaudeStream(
-              message,
+              fullMessage,
               sessionId,
               (chunk) => {
                 // Stream each chunk to the client

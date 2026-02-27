@@ -183,18 +183,36 @@ function App() {
     };
   }, []);
 
+  // Build message text with file context
+  const buildMessageWithFiles = (text, files) => {
+    if (!files || files.length === 0) return text;
+    const fileNames = files.map(f => f.originalName).join(', ');
+    const filesParam = files.map(f => f.filename);
+    return { text: text || `Please analyze the attached file(s): ${fileNames}`, files: filesParam, displayText: text || `[Attached: ${fileNames}]` };
+  };
+
   // Send via WebSocket (streaming)
-  const handleSendStreaming = useCallback((text) => {
+  const handleSendStreaming = useCallback((text, files) => {
+    const msgInfo = buildMessageWithFiles(text, files);
+    const displayText = typeof msgInfo === 'string' ? msgInfo : msgInfo.displayText;
+    const messageText = typeof msgInfo === 'string' ? msgInfo : msgInfo.text;
+    const fileNames = typeof msgInfo === 'string' ? undefined : msgInfo.files;
+
     const userMessage = {
       id: nextMessageId(),
-      text,
+      text: displayText,
       sender: 'user',
       timestamp: new Date()
     };
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
-    const sent = wsService.sendChat(text, sessionId);
+    const sent = wsService.send({
+      type: 'chat',
+      message: messageText,
+      sessionId,
+      files: fileNames
+    });
     if (!sent) {
       setMessages(prev => [...prev, {
         id: nextMessageId(),
@@ -204,15 +222,19 @@ function App() {
         isError: true
       }]);
       setIsLoading(false);
-      handleSendRest(text);
+      handleSendRest(text, files);
     }
   }, [sessionId]);
 
   // Send via REST API (non-streaming)
-  const handleSendRest = useCallback(async (text) => {
+  const handleSendRest = useCallback(async (text, files) => {
+    const msgInfo = buildMessageWithFiles(text, files);
+    const displayText = typeof msgInfo === 'string' ? msgInfo : msgInfo.displayText;
+    const messageText = typeof msgInfo === 'string' ? msgInfo : msgInfo.text;
+
     const userMessage = {
       id: nextMessageId(),
-      text,
+      text: displayText,
       sender: 'user',
       timestamp: new Date()
     };
@@ -220,7 +242,7 @@ function App() {
     setIsLoading(true);
 
     try {
-      const response = await sendMessage(text, sessionId);
+      const response = await sendMessage(messageText, sessionId);
       if (!sessionId) {
         setSessionId(response.sessionId);
         loadSessions();
@@ -245,11 +267,11 @@ function App() {
     }
   }, [sessionId]);
 
-  const handleSendMessage = useCallback((text) => {
+  const handleSendMessage = useCallback((text, files) => {
     if (useStreaming && wsConnected) {
-      handleSendStreaming(text);
+      handleSendStreaming(text, files);
     } else {
-      handleSendRest(text);
+      handleSendRest(text, files);
     }
   }, [useStreaming, wsConnected, handleSendStreaming, handleSendRest]);
 

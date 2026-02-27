@@ -1,0 +1,83 @@
+.file-upload-area {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.file-upload-area:hover {
+  border-color: rgba(255, 107, 107, 0.4);
+  color: #bbb;
+}
+
+.file-upload-area.drag-over {
+  border-color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.08);
+  color: #ff8a8a;
+}
+
+.file-upload-area.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.file-upload-icon {
+  font-size: 1rem;
+}
+
+.file-upload-text {
+  white-space: nowrap;
+}
+
+/* File chips for attached files */
+.file-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.4rem 0;
+}
+
+.file-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  color: #ccc;
+}
+
+.file-chip-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-chip-size {
+  color: #888;
+  font-size: 0.7rem;
+}
+
+.file-chip-remove {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 0 0.2rem;
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.file-chip-remove:hover {
+  color: #ff6b6b;
+}
