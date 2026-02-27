@@ -134,4 +134,55 @@ router.patch('/sessions/:sessionId', (req, res) => {
   }
 });
 
+// Export chat history
+router.get('/export/:sessionId', (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const format = req.query.format || 'json';
+
+    if (!UUID_REGEX.test(sessionId)) {
+      return res.status(400).json({ error: 'Invalid session ID format' });
+    }
+
+    const session = getSessionById(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const messages = getMessagesBySession(sessionId);
+
+    if (format === 'md') {
+      let md = `# ${session.title}\n\n`;
+      md += `*Exported: ${new Date().toISOString()}*\n\n---\n\n`;
+
+      for (const msg of messages) {
+        const role = msg.role === 'user' ? 'You' : 'Claude';
+        const time = new Date(msg.timestamp).toLocaleString();
+        md += `### ${role} (${time})\n\n${msg.content}\n\n---\n\n`;
+      }
+
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="chat-${sessionId.slice(0, 8)}.md"`);
+      res.send(md);
+    } else {
+      const exportData = {
+        session: {
+          id: session.id,
+          title: session.title,
+          created_at: session.created_at
+        },
+        messages,
+        exported_at: new Date().toISOString()
+      };
+
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="chat-${sessionId.slice(0, 8)}.json"`);
+      res.json(exportData);
+    }
+  } catch (error) {
+    console.error('Error exporting chat:', error);
+    res.status(500).json({ error: 'Failed to export chat' });
+  }
+});
+
 export default router;

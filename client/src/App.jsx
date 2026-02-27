@@ -293,6 +293,21 @@ function App() {
           <h1>Claude Gateway</h1>
         </div>
         <div className="header-controls">
+          {sessionId && (
+            <div className="export-dropdown">
+              <button className="export-btn" title="Export chat">
+                &#8615; Export
+              </button>
+              <div className="export-menu">
+                <a href={`/api/chat/export/${sessionId}?format=md`} download>
+                  Markdown (.md)
+                </a>
+                <a href={`/api/chat/export/${sessionId}?format=json`} download>
+                  JSON (.json)
+                </a>
+              </div>
+            </div>
+          )}
           <span className={`ws-status ${wsConnected ? 'connected' : 'disconnected'}`}>
             {wsConnected ? 'Connected' : 'Disconnected'}
           </span>

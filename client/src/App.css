@@ -55,6 +55,58 @@
   color: #f87171;
 }
 
+.export-dropdown {
+  position: relative;
+}
+
+.export-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #aaa;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.export-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ddd;
+}
+
+.export-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.3rem;
+  background: rgba(30, 30, 30, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  overflow: hidden;
+  min-width: 150px;
+  z-index: 50;
+}
+
+.export-dropdown:hover .export-menu {
+  display: block;
+}
+
+.export-menu a {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  color: #ccc;
+  text-decoration: none;
+  font-size: 0.8rem;
+  transition: background 0.15s;
+}
+
+.export-menu a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
 .streaming-toggle {
   display: flex;
   align-items: center;
