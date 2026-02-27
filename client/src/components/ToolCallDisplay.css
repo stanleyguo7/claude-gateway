@@ -1,0 +1,87 @@
+.tool-calls {
+  margin: 0.5em 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.tool-call-item {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tool-call-item.running {
+  border-color: rgba(250, 204, 21, 0.3);
+}
+
+.tool-call-item.done {
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+.tool-call-item.error {
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background 0.15s;
+}
+
+.tool-call-header:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tool-status-icon {
+  font-size: 0.85rem;
+}
+
+.tool-name {
+  flex: 1;
+  font-weight: 500;
+  color: #ccc;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.tool-expand {
+  font-size: 0.6rem;
+  color: #888;
+}
+
+.tool-call-details {
+  padding: 0 0.6rem 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tool-section {
+  margin-top: 0.4rem;
+}
+
+.tool-section-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: #888;
+  margin-bottom: 0.2rem;
+  letter-spacing: 0.04em;
+}
+
+.tool-json {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: #aaa;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}

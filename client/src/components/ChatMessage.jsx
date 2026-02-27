@@ -2,6 +2,7 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useState } from 'react';
+import ToolCallDisplay from './ToolCallDisplay';
 import './ChatMessage.css';
 
 function CopyButton({ code }) {
@@ -57,23 +58,28 @@ function CodeBlock({ inline, className, children, ...props }) {
 }
 
 function ChatMessage({ message }) {
-  const { text, sender, timestamp, isError } = message;
+  const { text, sender, timestamp, isError, toolCalls } = message;
 
   const renderContent = () => {
     if (sender === 'assistant') {
       return (
-        <ReactMarkdown
-          components={{
-            code: CodeBlock,
-            a: ({ href, children }) => (
-              <a href={href} target="_blank" rel="noopener noreferrer">
-                {children}
-              </a>
-            ),
-          }}
-        >
-          {text}
-        </ReactMarkdown>
+        <>
+          {toolCalls && toolCalls.length > 0 && (
+            <ToolCallDisplay toolCalls={toolCalls} />
+          )}
+          <ReactMarkdown
+            components={{
+              code: CodeBlock,
+              a: ({ href, children }) => (
+                <a href={href} target="_blank" rel="noopener noreferrer">
+                  {children}
+                </a>
+              ),
+            }}
+          >
+            {text}
+          </ReactMarkdown>
+        </>
       );
     }
     return <span>{text}</span>;

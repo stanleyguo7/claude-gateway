@@ -57,9 +57,23 @@ export function setupWebSocket(wss) {
             const response = await sendMessageToClaudeStream(
               fullMessage,
               sessionId,
-              (chunk) => {
-                // Stream each chunk to the client
-                if (ws.readyState === ws.OPEN) {
+              (chunk, rawEvent) => {
+                if (ws.readyState !== ws.OPEN) return;
+
+                // Forward tool use events
+                if (rawEvent && rawEvent.type === 'content_block_start' && rawEvent.content_block?.type === 'tool_use') {
+                  ws.send(JSON.stringify({
+                    type: 'tool_use_start',
+                    name: rawEvent.content_block.name,
+                    id: rawEvent.content_block.id,
+                    input: rawEvent.content_block.input
+                  }));
+                } else if (rawEvent && rawEvent.type === 'content_block_stop') {
+                  ws.send(JSON.stringify({ type: 'tool_use_end' }));
+                }
+
+                // Stream text chunks
+                if (chunk) {
                   ws.send(JSON.stringify({ type: 'stream_chunk', chunk }));
                 }
               },

@@ -128,7 +128,8 @@ function App() {
         text: '',
         sender: 'assistant',
         timestamp: new Date(),
-        isStreaming: true
+        isStreaming: true,
+        toolCalls: []
       }]);
     });
 
@@ -140,6 +141,30 @@ function App() {
           ? { ...msg, text: msg.text + data.chunk }
           : msg
       ));
+    });
+
+    const offToolStart = wsService.on('tool_use_start', (data) => {
+      const currentId = streamingMsgId.current;
+      if (!currentId) return;
+      setMessages(prev => prev.map(msg =>
+        msg.id === currentId
+          ? { ...msg, toolCalls: [...(msg.toolCalls || []), { name: data.name, id: data.id, input: data.input, status: 'running' }] }
+          : msg
+      ));
+    });
+
+    const offToolEnd = wsService.on('tool_use_end', () => {
+      const currentId = streamingMsgId.current;
+      if (!currentId) return;
+      setMessages(prev => prev.map(msg => {
+        if (msg.id !== currentId || !msg.toolCalls?.length) return msg;
+        const updated = [...msg.toolCalls];
+        const lastIdx = updated.length - 1;
+        if (updated[lastIdx].status === 'running') {
+          updated[lastIdx] = { ...updated[lastIdx], status: 'done' };
+        }
+        return { ...msg, toolCalls: updated };
+      }));
     });
 
     const offStreamEnd = wsService.on('stream_end', (data) => {
@@ -154,7 +179,6 @@ function App() {
       streamingMsgId.current = null;
       if (data.sessionId) {
         setSessionId(data.sessionId);
-        // Refresh session list to pick up new session
         loadSessions();
       }
       setIsLoading(false);
@@ -177,6 +201,8 @@ function App() {
       offDisconnected();
       offStreamStart();
       offStreamChunk();
+      offToolStart();
+      offToolEnd();
       offStreamEnd();
       offError();
       wsService.disconnect();
