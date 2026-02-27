@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  claude-gateway:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - CLAUDE_CLI_PATH=claude
+    volumes:
+      - gateway-data:/app/server/data
+      - gateway-uploads:/app/server/uploads
+    restart: unless-stopped
+
+volumes:
+  gateway-data:
+  gateway-uploads:
