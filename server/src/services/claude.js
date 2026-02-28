@@ -70,8 +70,7 @@ class ProcessManager {
 
     const args = ['--print', '--verbose',
       '--input-format', 'stream-json',
-      '--output-format', 'stream-json',
-      '--session-id', sessionId
+      '--output-format', 'stream-json'
     ];
 
     const model = options.model || config.defaultModel;
