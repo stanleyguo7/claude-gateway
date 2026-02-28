@@ -1,5 +1,6 @@
 import express from 'express';
 import logger from '../services/logger.js';
+import { config } from '../config.js';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -24,7 +25,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: config.maxFileSize },
   fileFilter: (req, file, cb) => {
     // Allow text-based files and common document types
     const allowedMimes = [
@@ -65,7 +66,7 @@ const upload = multer({
 const router = express.Router();
 
 // Upload files
-router.post('/', upload.array('files', 5), (req, res) => {
+router.post('/', upload.array('files', config.maxFileCount), (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
@@ -108,9 +109,8 @@ export function readUploadedFile(filename) {
   return { type: 'text', content, ext };
 }
 
-// Clean up old uploads (files older than 1 hour)
+// Clean up old uploads
 export function cleanupUploads() {
-  const maxAge = 60 * 60 * 1000; // 1 hour
   const now = Date.now();
 
   try {
@@ -119,7 +119,7 @@ export function cleanupUploads() {
       if (file === '.gitkeep') continue;
       const filePath = path.join(UPLOAD_DIR, file);
       const stat = fs.statSync(filePath);
-      if (now - stat.mtimeMs > maxAge) {
+      if (now - stat.mtimeMs > config.uploadCleanupAge) {
         fs.unlinkSync(filePath);
       }
     }
@@ -132,10 +132,10 @@ export function cleanupUploads() {
 router.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'File too large. Maximum size is 10MB.' });
+      return res.status(400).json({ error: `File too large. Maximum size is ${Math.round(config.maxFileSize / (1024 * 1024))}MB.` });
     }
     if (err.code === 'LIMIT_FILE_COUNT') {
-      return res.status(400).json({ error: 'Too many files. Maximum is 5 files.' });
+      return res.status(400).json({ error: `Too many files. Maximum is ${config.maxFileCount} files.` });
     }
     return res.status(400).json({ error: err.message });
   }

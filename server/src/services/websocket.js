@@ -1,19 +1,13 @@
 import { sendMessageToClaudeStream } from './claude.js';
 import { readUploadedFile } from '../api/upload.js';
+import { config } from '../config.js';
 import logger from './logger.js';
-
-const ALLOWED_ORIGINS = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:3001'
-];
 
 export function setupWebSocket(wss) {
   wss.on('connection', (ws, req) => {
     // Origin validation
     const origin = req.headers.origin;
-    if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+    if (origin && !config.allowedOrigins.includes(origin)) {
       logger.warn({ origin }, 'WebSocket connection rejected');
       ws.close(1008, 'Origin not allowed');
       return;

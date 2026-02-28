@@ -12,7 +12,9 @@ class WebSocketService {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const host = window.location.hostname;
+    const serverPort = import.meta.env.VITE_SERVER_PORT || '3001';
+    const wsUrl = `${protocol}//${host}:${serverPort}/gateway-ws`;
 
     this.ws = new WebSocket(wsUrl);
 

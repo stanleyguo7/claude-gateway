@@ -1,5 +1,6 @@
 import express from 'express';
 import logger from '../services/logger.js';
+import { config } from '../config.js';
 import { sendMessageToClaude, getSession } from '../services/claude.js';
 import {
   getMessagesBySession,
@@ -13,7 +14,6 @@ import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
-const MAX_MESSAGE_LENGTH = 10000;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Send a message to Claude
@@ -25,8 +25,8 @@ router.post('/message', async (req, res) => {
       return res.status(400).json({ error: 'Message must be a non-empty string' });
     }
 
-    if (message.length > MAX_MESSAGE_LENGTH) {
-      return res.status(400).json({ error: `Message exceeds maximum length of ${MAX_MESSAGE_LENGTH} characters` });
+    if (message.length > config.maxMessageLength) {
+      return res.status(400).json({ error: `Message exceeds maximum length of ${config.maxMessageLength} characters` });
     }
 
     if (sessionId && !UUID_REGEX.test(sessionId)) {

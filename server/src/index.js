@@ -1,35 +1,25 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { WebSocketServer } from 'ws';
 import http from 'http';
+import { config } from './config.js';
 import chatRouter from './api/chat.js';
 import uploadRouter, { cleanupUploads } from './api/upload.js';
 import { setupWebSocket } from './services/websocket.js';
 import { initDatabase, closeDatabase } from './services/database.js';
 import logger from './services/logger.js';
 
-dotenv.config();
-
 // Initialize database
 initDatabase();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
 
 // CORS - restrict to known origins
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:3001'
-];
-
 app.use(cors({
   origin(origin, callback) {
     // Allow requests with no origin (curl, server-to-server)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
+    if (config.allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
     callback(new Error('Not allowed by CORS'));
@@ -37,25 +27,23 @@ app.use(cors({
 }));
 
 // Body size limit
-app.use(express.json({ limit: '16kb' }));
+app.use(express.json({ limit: config.bodyLimit }));
 
 // Simple rate limiting (per IP)
 const rateLimitMap = new Map();
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX = 30; // max requests per window
 
 function rateLimit(req, res, next) {
   const ip = req.ip;
   const now = Date.now();
   const record = rateLimitMap.get(ip);
 
-  if (!record || now - record.start > RATE_LIMIT_WINDOW) {
+  if (!record || now - record.start > config.rateLimitWindow) {
     rateLimitMap.set(ip, { start: now, count: 1 });
     return next();
   }
 
   record.count++;
-  if (record.count > RATE_LIMIT_MAX) {
+  if (record.count > config.rateLimitMax) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
   }
   next();
@@ -81,18 +69,18 @@ app.use((req, res, next) => {
 setInterval(() => {
   const now = Date.now();
   for (const [ip, record] of rateLimitMap) {
-    if (now - record.start > RATE_LIMIT_WINDOW) {
+    if (now - record.start > config.rateLimitWindow) {
       rateLimitMap.delete(ip);
     }
   }
-}, RATE_LIMIT_WINDOW);
+}, config.rateLimitWindow);
 
 // Routes
 app.use('/api/chat', chatRouter);
 app.use('/api/upload', uploadRouter);
 
-// Upload cleanup interval (every 30 minutes)
-setInterval(() => cleanupUploads(), 30 * 60 * 1000);
+// Upload cleanup interval
+setInterval(() => cleanupUploads(), config.uploadCleanupInterval);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -114,12 +102,12 @@ app.use((err, req, res, next) => {
 const server = http.createServer(app);
 
 // Setup WebSocket
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ server, path: '/gateway-ws' });
 setupWebSocket(wss);
 
-server.listen(PORT, () => {
-  logger.info(`Server running on http://localhost:${PORT}`);
-  logger.info(`WebSocket server running on ws://localhost:${PORT}`);
+server.listen(config.port, () => {
+  logger.info(`Server running on http://localhost:${config.port}`);
+  logger.info(`WebSocket server running on ws://localhost:${config.port}`);
 });
 
 // Graceful shutdown
@@ -139,11 +127,11 @@ function shutdown(signal) {
     process.exit(0);
   });
 
-  // Force shutdown after 5 seconds
+  // Force shutdown after timeout
   setTimeout(() => {
     logger.error('Forced shutdown after timeout.');
     process.exit(1);
-  }, 5000);
+  }, config.shutdownTimeout);
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));

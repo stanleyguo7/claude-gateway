@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
+import { config } from '../config.js';
 import logger from './logger.js';
 import {
   createSession,
@@ -33,18 +34,29 @@ export function getSession(sessionId) {
   return { ...session, messages };
 }
 
+// Build a clean env without Claude Code session vars
+function getCleanEnv() {
+  const env = { ...process.env };
+  Object.keys(env).forEach(key => {
+    if (key === 'CLAUDECODE' || key.startsWith('CLAUDE_CODE_')) {
+      delete env[key];
+    }
+  });
+  return env;
+}
+
 // Build common CLI args
 function buildCliArgs(message, hasPriorMessages, options = {}) {
-  const args = ['--print'];
+  const args = ['--print', '--verbose'];
 
   // Model selection
-  const model = options.model || process.env.DEFAULT_MODEL;
+  const model = options.model || config.defaultModel;
   if (model) {
     args.push('--model', model);
   }
 
   // System prompt
-  const systemPrompt = options.systemPrompt || process.env.DEFAULT_SYSTEM_PROMPT;
+  const systemPrompt = options.systemPrompt || config.defaultSystemPrompt;
   if (systemPrompt) {
     args.push('--system-prompt', systemPrompt);
   }
@@ -70,9 +82,8 @@ export async function sendMessageToClaude(message, sessionId = null, options = {
   // Store user message
   addMessage(session.id, 'user', message);
 
-  const claudePath = process.env.CLAUDE_CLI_PATH || 'claude';
   const hasPriorMessages = messages.length > 0;
-  const response = await executeClaude(claudePath, message, hasPriorMessages, {
+  const response = await executeClaude(config.claudeCliPath, message, hasPriorMessages, {
     ...options,
     sessionId: session.id
   });
@@ -94,9 +105,8 @@ export async function sendMessageToClaudeStream(message, sessionId, onChunk, opt
 
   addMessage(session.id, 'user', message);
 
-  const claudePath = process.env.CLAUDE_CLI_PATH || 'claude';
   const hasPriorMessages = messages.length > 0;
-  const response = await executeClaudeStream(claudePath, message, hasPriorMessages, onChunk, {
+  const response = await executeClaudeStream(config.claudeCliPath, message, hasPriorMessages, onChunk, {
     ...options,
     sessionId: session.id
   });
@@ -118,13 +128,17 @@ function executeClaude(claudePath, message, hasPriorMessages, options = {}) {
     args.push(message);
 
     const claudeProcess = spawn(claudePath, args, {
-      env: { ...process.env },
-      timeout: 120000
+      env: getCleanEnv()
     });
 
     let fullText = '';
     let stderr = '';
     let buffer = '';
+
+    // Manual timeout - kill process if it exceeds configured timeout
+    const timeoutId = setTimeout(() => {
+      claudeProcess.kill('SIGTERM');
+    }, config.claudeTimeout);
 
     claudeProcess.stdout.on('data', (data) => {
       buffer += data.toString();
@@ -163,6 +177,8 @@ function executeClaude(claudePath, message, hasPriorMessages, options = {}) {
     });
 
     claudeProcess.on('close', (code) => {
+      clearTimeout(timeoutId);
+
       // Process remaining buffer
       if (buffer.trim()) {
         try {
@@ -199,13 +215,17 @@ function executeClaudeStream(claudePath, message, hasPriorMessages, onChunk, opt
     args.push(message);
 
     const claudeProcess = spawn(claudePath, args, {
-      env: { ...process.env },
-      timeout: 120000
+      env: getCleanEnv()
     });
 
     let fullText = '';
     let stderr = '';
     let buffer = '';
+
+    // Manual timeout - kill process if it exceeds configured timeout
+    const timeoutId = setTimeout(() => {
+      claudeProcess.kill('SIGTERM');
+    }, config.claudeTimeout);
 
     claudeProcess.stdout.on('data', (data) => {
       buffer += data.toString();
@@ -254,6 +274,8 @@ function executeClaudeStream(claudePath, message, hasPriorMessages, onChunk, opt
     });
 
     claudeProcess.on('close', (code) => {
+      clearTimeout(timeoutId);
+
       // Process remaining buffer
       if (buffer.trim()) {
         try {
