@@ -45,48 +45,338 @@ function getCleanEnv() {
   return env;
 }
 
-// Build common CLI args
-function buildCliArgs(message, hasPriorMessages, options = {}) {
-  const args = ['--print', '--verbose'];
+// ─── ProcessManager: long-lived Claude CLI process management ───
 
-  // Model selection
-  const model = options.model || config.defaultModel;
-  if (model) {
-    args.push('--model', model);
+class ProcessManager {
+  constructor() {
+    /** @type {Map<string, ManagedProcess>} */
+    this.processes = new Map();
   }
 
-  // System prompt
-  const systemPrompt = options.systemPrompt || config.defaultSystemPrompt;
-  if (systemPrompt) {
-    args.push('--system-prompt', systemPrompt);
+  /**
+   * Get an existing process or spawn a new one for this session.
+   */
+  getOrSpawn(sessionId, options = {}) {
+    const existing = this.processes.get(sessionId);
+    if (existing && existing.process && !existing.process.killed) {
+      this._resetIdleTimer(existing);
+      return existing;
+    }
+
+    // Clean up stale entry if any
+    if (existing) {
+      this.processes.delete(sessionId);
+    }
+
+    const args = ['--print', '--verbose',
+      '--input-format', 'stream-json',
+      '--output-format', 'stream-json',
+      '--session-id', sessionId
+    ];
+
+    const model = options.model || config.defaultModel;
+    if (model) {
+      args.push('--model', model);
+    }
+
+    const systemPrompt = options.systemPrompt || config.defaultSystemPrompt;
+    if (systemPrompt) {
+      args.push('--system-prompt', systemPrompt);
+    }
+
+    logger.info({ sessionId, model: model || '(default)' }, 'Spawned long-lived Claude process');
+
+    const proc = spawn(config.claudeCliPath, args, {
+      env: getCleanEnv(),
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    const managed = {
+      process: proc,
+      sessionId,
+      busy: false,
+      idleTimer: null,
+      pendingTurn: null,
+      stderr: '',
+      options: { model, systemPrompt }
+    };
+
+    // Collect stderr
+    proc.stderr.on('data', (data) => {
+      managed.stderr += data.toString();
+    });
+
+    // Handle unexpected exit
+    proc.on('close', (code) => {
+      logger.info({ sessionId, code }, 'Claude process exited');
+
+      // If there's a pending turn, reject it
+      if (managed.pendingTurn) {
+        const pending = managed.pendingTurn;
+        managed.pendingTurn = null;
+        if (pending.turnTimeout) clearTimeout(pending.turnTimeout);
+        pending.reject(new Error(
+          `Claude process exited unexpectedly (code ${code}): ${managed.stderr.trim() || 'Unknown error'}`
+        ));
+      }
+
+      if (managed.idleTimer) clearTimeout(managed.idleTimer);
+      this.processes.delete(sessionId);
+    });
+
+    proc.on('error', (err) => {
+      if (managed.pendingTurn) {
+        const pending = managed.pendingTurn;
+        managed.pendingTurn = null;
+        if (pending.turnTimeout) clearTimeout(pending.turnTimeout);
+
+        if (err.code === 'ENOENT') {
+          pending.reject(new Error(
+            `Claude CLI not found at '${config.claudeCliPath}'. Please install Claude CLI or set CLAUDE_CLI_PATH in .env`
+          ));
+        } else {
+          pending.reject(new Error(`Failed to start Claude CLI: ${err.message}`));
+        }
+      }
+
+      if (managed.idleTimer) clearTimeout(managed.idleTimer);
+      this.processes.delete(sessionId);
+    });
+
+    // Wire up stdout NDJSON parsing
+    this._setupStdoutParser(managed);
+
+    this.processes.set(sessionId, managed);
+    this._resetIdleTimer(managed);
+
+    return managed;
   }
 
-  // Continue conversation if there are prior messages
-  if (hasPriorMessages) {
-    args.push('--continue');
+  /**
+   * Set up NDJSON line parser on stdout for a managed process.
+   */
+  _setupStdoutParser(managed) {
+    let buffer = '';
+
+    managed.process.stdout.on('data', (data) => {
+      buffer += data.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep incomplete line
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const event = JSON.parse(line);
+          this._routeEvent(managed, event);
+        } catch {
+          // Non-JSON line, ignore
+        }
+      }
+    });
   }
 
-  // Session ID for Claude CLI native session management
-  if (options.sessionId) {
-    args.push('--session-id', options.sessionId);
+  /**
+   * Route a parsed NDJSON event to the appropriate handler.
+   */
+  _routeEvent(managed, event) {
+    const pending = managed.pendingTurn;
+    if (!pending) return; // No active turn, discard
+
+    if (event.type === 'system') {
+      // Init/system event — log it
+      logger.debug({ sessionId: managed.sessionId, event }, 'Claude system event');
+      return;
+    }
+
+    if (event.type === 'stream_event') {
+      // Unwrap the inner event
+      const inner = event.event;
+      if (!inner) return;
+
+      if (inner.type === 'content_block_delta' && inner.delta?.text) {
+        pending.fullText += inner.delta.text;
+        if (pending.onChunk) pending.onChunk(inner.delta.text, inner);
+      } else if (inner.type === 'content_block_start' || inner.type === 'content_block_stop') {
+        if (pending.onChunk) pending.onChunk(null, inner);
+      }
+      return;
+    }
+
+    // Direct content_block_delta (some CLI versions emit these at top level)
+    if (event.type === 'content_block_delta' && event.delta?.text) {
+      pending.fullText += event.delta.text;
+      if (pending.onChunk) pending.onChunk(event.delta.text, event);
+      return;
+    }
+
+    // Direct content_block_start/stop
+    if (event.type === 'content_block_start' || event.type === 'content_block_stop') {
+      if (pending.onChunk) pending.onChunk(null, event);
+      return;
+    }
+
+    if (event.type === 'assistant' && event.message?.content) {
+      // Full assistant message — in streaming mode we already accumulated via deltas,
+      // but for non-streaming we extract text here as fallback
+      if (!pending.fullText) {
+        for (const block of event.message.content) {
+          if (block.type === 'text') {
+            pending.fullText += block.text;
+          }
+        }
+      }
+      return;
+    }
+
+    if (event.type === 'result') {
+      // Turn complete — resolve the promise
+      const text = pending.fullText.trim() || 'No response from Claude.';
+      if (pending.turnTimeout) clearTimeout(pending.turnTimeout);
+      managed.pendingTurn = null;
+      managed.busy = false;
+      this._resetIdleTimer(managed);
+      pending.resolve(text);
+      return;
+    }
   }
 
-  return args;
+  /**
+   * Send a message (non-streaming). Returns the full response text.
+   */
+  sendMessage(sessionId, message, options = {}) {
+    return this._send(sessionId, message, null, options);
+  }
+
+  /**
+   * Send a message (streaming). Calls onChunk for each delta. Returns full response text.
+   */
+  sendMessageStream(sessionId, message, onChunk, options = {}) {
+    return this._send(sessionId, message, onChunk, options);
+  }
+
+  /**
+   * Internal: send a user turn to the managed process.
+   */
+  _send(sessionId, message, onChunk, options = {}) {
+    const managed = this.getOrSpawn(sessionId, options);
+
+    if (managed.busy) {
+      return Promise.reject(new Error('Session is busy processing another message. Please wait.'));
+    }
+
+    managed.busy = true;
+    managed.stderr = '';
+
+    // Clear idle timer while processing
+    if (managed.idleTimer) {
+      clearTimeout(managed.idleTimer);
+      managed.idleTimer = null;
+    }
+
+    return new Promise((resolve, reject) => {
+      const turnTimeout = setTimeout(() => {
+        logger.error({ sessionId }, 'Claude turn timed out, killing process');
+        managed.pendingTurn = null;
+        managed.busy = false;
+        this.killProcess(sessionId);
+        reject(new Error(`Claude CLI timeout after ${config.claudeTimeout}ms`));
+      }, config.claudeTimeout);
+
+      managed.pendingTurn = {
+        resolve,
+        reject,
+        fullText: '',
+        onChunk,
+        turnTimeout
+      };
+
+      // Write user message to stdin
+      const stdinMsg = JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: message }
+      }) + '\n';
+
+      try {
+        managed.process.stdin.write(stdinMsg);
+      } catch (err) {
+        clearTimeout(turnTimeout);
+        managed.pendingTurn = null;
+        managed.busy = false;
+        this.processes.delete(sessionId);
+        reject(new Error(`Failed to write to Claude process stdin: ${err.message}`));
+      }
+    });
+  }
+
+  /**
+   * Reset the idle timer for a managed process.
+   */
+  _resetIdleTimer(managed) {
+    if (managed.idleTimer) {
+      clearTimeout(managed.idleTimer);
+    }
+
+    managed.idleTimer = setTimeout(() => {
+      if (!managed.busy) {
+        logger.info({ sessionId: managed.sessionId }, 'Idle timeout reached, closing Claude process');
+        this.killProcess(managed.sessionId);
+      }
+    }, config.processIdleTimeout);
+  }
+
+  /**
+   * Kill a specific process by session ID.
+   */
+  killProcess(sessionId) {
+    const managed = this.processes.get(sessionId);
+    if (!managed) return;
+
+    if (managed.idleTimer) clearTimeout(managed.idleTimer);
+    if (managed.pendingTurn?.turnTimeout) clearTimeout(managed.pendingTurn.turnTimeout);
+
+    try {
+      managed.process.stdin.end();
+    } catch {
+      // stdin may already be closed
+    }
+
+    // Give it a moment to exit gracefully, then force kill
+    setTimeout(() => {
+      try {
+        if (!managed.process.killed) {
+          managed.process.kill('SIGTERM');
+        }
+      } catch {
+        // already dead
+      }
+    }, 1000);
+
+    this.processes.delete(sessionId);
+  }
+
+  /**
+   * Shutdown all managed processes (for server shutdown).
+   */
+  shutdownAll() {
+    logger.info({ count: this.processes.size }, 'Shutting down all Claude processes');
+    for (const sessionId of this.processes.keys()) {
+      this.killProcess(sessionId);
+    }
+  }
 }
 
-// Send message to Claude CLI and get response
+// Singleton instance
+const processManager = new ProcessManager();
+
+// ─── Public API (signatures unchanged) ───
+
 export async function sendMessageToClaude(message, sessionId = null, options = {}) {
   const session = getOrCreateSession(sessionId);
-  const messages = getMessagesBySession(session.id);
 
   // Store user message
   addMessage(session.id, 'user', message);
 
-  const hasPriorMessages = messages.length > 0;
-  const response = await executeClaude(config.claudeCliPath, message, hasPriorMessages, {
-    ...options,
-    sessionId: session.id
-  });
+  const response = await processManager.sendMessage(session.id, message, options);
 
   // Store assistant message
   addMessage(session.id, 'assistant', response);
@@ -98,18 +388,12 @@ export async function sendMessageToClaude(message, sessionId = null, options = {
   };
 }
 
-// Send message to Claude CLI with streaming callback
 export async function sendMessageToClaudeStream(message, sessionId, onChunk, options = {}) {
   const session = getOrCreateSession(sessionId);
-  const messages = getMessagesBySession(session.id);
 
   addMessage(session.id, 'user', message);
 
-  const hasPriorMessages = messages.length > 0;
-  const response = await executeClaudeStream(config.claudeCliPath, message, hasPriorMessages, onChunk, {
-    ...options,
-    sessionId: session.id
-  });
+  const response = await processManager.sendMessageStream(session.id, message, onChunk, options);
 
   addMessage(session.id, 'assistant', response);
 
@@ -120,180 +404,6 @@ export async function sendMessageToClaudeStream(message, sessionId, onChunk, opt
   };
 }
 
-// Execute Claude CLI with stream-json output, collect full response
-function executeClaude(claudePath, message, hasPriorMessages, options = {}) {
-  return new Promise((resolve, reject) => {
-    const args = buildCliArgs(message, hasPriorMessages, options);
-    args.push('--output-format', 'stream-json');
-    args.push(message);
-
-    const claudeProcess = spawn(claudePath, args, {
-      env: getCleanEnv()
-    });
-
-    let fullText = '';
-    let stderr = '';
-    let buffer = '';
-
-    // Manual timeout - kill process if it exceeds configured timeout
-    const timeoutId = setTimeout(() => {
-      claudeProcess.kill('SIGTERM');
-    }, config.claudeTimeout);
-
-    claudeProcess.stdout.on('data', (data) => {
-      buffer += data.toString();
-      const lines = buffer.split('\n');
-      buffer = lines.pop(); // keep incomplete line in buffer
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const event = JSON.parse(line);
-          if (event.type === 'assistant' && event.message?.content) {
-            for (const block of event.message.content) {
-              if (block.type === 'text') {
-                fullText += block.text;
-              }
-            }
-          } else if (event.type === 'content_block_delta' && event.delta?.text) {
-            fullText += event.delta.text;
-          }
-        } catch {
-          // Non-JSON line, ignore
-        }
-      }
-    });
-
-    claudeProcess.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    claudeProcess.on('error', (err) => {
-      if (err.code === 'ENOENT') {
-        reject(new Error(`Claude CLI not found at '${claudePath}'. Please install Claude CLI or set CLAUDE_CLI_PATH in .env`));
-      } else {
-        reject(new Error(`Failed to start Claude CLI: ${err.message}`));
-      }
-    });
-
-    claudeProcess.on('close', (code) => {
-      clearTimeout(timeoutId);
-
-      // Process remaining buffer
-      if (buffer.trim()) {
-        try {
-          const event = JSON.parse(buffer);
-          if (event.type === 'assistant' && event.message?.content) {
-            for (const block of event.message.content) {
-              if (block.type === 'text') {
-                fullText += block.text;
-              }
-            }
-          } else if (event.type === 'content_block_delta' && event.delta?.text) {
-            fullText += event.delta.text;
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      if (code === 0) {
-        resolve(fullText.trim() || 'No response from Claude.');
-      } else {
-        logger.error({ code, stderr }, 'Claude CLI exited with error');
-        reject(new Error(`Claude CLI error (code ${code}): ${stderr.trim() || 'Unknown error'}`));
-      }
-    });
-  });
-}
-
-// Execute Claude CLI with streaming output (stream-json format)
-function executeClaudeStream(claudePath, message, hasPriorMessages, onChunk, options = {}) {
-  return new Promise((resolve, reject) => {
-    const args = buildCliArgs(message, hasPriorMessages, options);
-    args.push('--output-format', 'stream-json');
-    args.push(message);
-
-    const claudeProcess = spawn(claudePath, args, {
-      env: getCleanEnv()
-    });
-
-    let fullText = '';
-    let stderr = '';
-    let buffer = '';
-
-    // Manual timeout - kill process if it exceeds configured timeout
-    const timeoutId = setTimeout(() => {
-      claudeProcess.kill('SIGTERM');
-    }, config.claudeTimeout);
-
-    claudeProcess.stdout.on('data', (data) => {
-      buffer += data.toString();
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const event = JSON.parse(line);
-
-          if (event.type === 'assistant' && event.message?.content) {
-            for (const block of event.message.content) {
-              if (block.type === 'text') {
-                fullText += block.text;
-                if (onChunk) onChunk(block.text, event);
-              }
-            }
-          } else if (event.type === 'content_block_delta' && event.delta?.text) {
-            fullText += event.delta.text;
-            if (onChunk) onChunk(event.delta.text, event);
-          }
-
-          // Pass through raw events for tool_use visualization (Phase 3)
-          if (onChunk && (event.type === 'content_block_start' || event.type === 'content_block_stop')) {
-            onChunk(null, event);
-          }
-        } catch {
-          // Non-JSON line, treat as raw text
-          fullText += line;
-          if (onChunk) onChunk(line, null);
-        }
-      }
-    });
-
-    claudeProcess.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    claudeProcess.on('error', (err) => {
-      if (err.code === 'ENOENT') {
-        reject(new Error(`Claude CLI not found at '${claudePath}'.`));
-      } else {
-        reject(new Error(`Failed to start Claude CLI: ${err.message}`));
-      }
-    });
-
-    claudeProcess.on('close', (code) => {
-      clearTimeout(timeoutId);
-
-      // Process remaining buffer
-      if (buffer.trim()) {
-        try {
-          const event = JSON.parse(buffer);
-          if (event.type === 'content_block_delta' && event.delta?.text) {
-            fullText += event.delta.text;
-            if (onChunk) onChunk(event.delta.text, event);
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      if (code === 0) {
-        resolve(fullText.trim() || 'No response from Claude.');
-      } else {
-        reject(new Error(`Claude CLI error (code ${code}): ${stderr.trim() || 'Unknown error'}`));
-      }
-    });
-  });
+export function shutdownAllProcesses() {
+  processManager.shutdownAll();
 }

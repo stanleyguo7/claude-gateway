@@ -7,6 +7,7 @@ import chatRouter from './api/chat.js';
 import uploadRouter, { cleanupUploads } from './api/upload.js';
 import { setupWebSocket } from './services/websocket.js';
 import { initDatabase, closeDatabase } from './services/database.js';
+import { shutdownAllProcesses } from './services/claude.js';
 import logger from './services/logger.js';
 
 // Initialize database
@@ -113,6 +114,9 @@ server.listen(config.port, () => {
 // Graceful shutdown
 function shutdown(signal) {
   logger.info(`${signal} received. Shutting down gracefully...`);
+
+  // Shutdown all long-lived Claude processes
+  shutdownAllProcesses();
 
   // Close database
   closeDatabase();

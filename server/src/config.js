@@ -22,6 +22,7 @@ export const config = {
   claudeTimeout: Number(process.env.CLAUDE_TIMEOUT) || 120000,
   defaultModel: process.env.DEFAULT_MODEL || '',
   defaultSystemPrompt: process.env.DEFAULT_SYSTEM_PROMPT || '',
+  processIdleTimeout: Number(process.env.PROCESS_IDLE_TIMEOUT) || 300000,
 
   // Messages
   maxMessageLength: Number(process.env.MAX_MESSAGE_LENGTH) || 10000,
