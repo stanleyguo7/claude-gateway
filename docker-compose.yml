@@ -24,6 +24,8 @@ services:
       # - UPLOAD_CLEANUP_INTERVAL=1800000
       # - LOG_LEVEL=info
       # - SHUTDOWN_TIMEOUT=5000
+      # Auto-detect Tailscale IP and add to CORS (true by default, set false to disable)
+      # - TAILSCALE_AUTO_DETECT=true
     volumes:
       - gateway-data:/app/server/data
       - gateway-uploads:/app/server/uploads

@@ -1,6 +1,27 @@
 import dotenv from 'dotenv';
+import { execSync } from 'child_process';
 
 dotenv.config();
+
+function detectTailscaleIPs() {
+  try {
+    const output = execSync('tailscale ip -4', { timeout: 3000, encoding: 'utf-8' });
+    return output.trim().split('\n').map(ip => ip.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function buildAllowedOrigins() {
+  const origins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001').split(',');
+  if (process.env.TAILSCALE_AUTO_DETECT !== 'false') {
+    const port = Number(process.env.PORT) || 3001;
+    for (const ip of detectTailscaleIPs()) {
+      origins.push(`http://${ip}:3000`, `http://${ip}:${port}`);
+    }
+  }
+  return origins;
+}
 
 export const config = {
   // Server
@@ -8,7 +29,7 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
 
   // CORS
-  allowedOrigins: (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001').split(','),
+  allowedOrigins: buildAllowedOrigins(),
 
   // Rate limiting
   rateLimitWindow: Number(process.env.RATE_LIMIT_WINDOW) || 60000,
